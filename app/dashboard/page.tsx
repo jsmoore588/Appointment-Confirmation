@@ -41,7 +41,7 @@ export default async function DashboardPage() {
               href="/dashboard/settings"
               className="inline-flex rounded-full border border-black/10 px-4 py-3 text-sm font-medium text-ink"
             >
-              Settings
+              Edit template
             </Link>
             <Link
               href="/"

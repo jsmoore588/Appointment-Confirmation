@@ -17,9 +17,15 @@ const arrivalSteps = [
 ];
 
 const expectationSteps = [
-  { label: "Walkaround", time: "~15 min" },
-  { label: "Market review", time: "~10 min" },
-  { label: "Offer", time: "~10-15 min" }
+  { label: "Walkaround", time: "~15 min", detail: "Quick look over the vehicle to confirm overall condition." },
+  { label: "Market review", time: "~10 min", detail: "We show you the real market and where the numbers come from." },
+  { label: "Offer", time: "~10-15 min", detail: "We wrap with a straightforward offer and next steps." }
+];
+
+const bringItems = [
+  { label: "Title (if you have it)", detail: "If it is available, bringing it can speed things up." },
+  { label: "Payoff info (if applicable)", detail: "A recent payoff amount helps if there is money still owed." },
+  { label: "Keys", detail: "Bring every key you have so the visit stays simple." }
 ];
 
 function createGoogleCalendarLink(appointment: Appointment, startLabel: string) {
@@ -47,21 +53,71 @@ function toGoogleDate(value: Date) {
   return value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
 
+function formatShortTime(dateText?: string) {
+  if (!dateText) {
+    return null;
+  }
+
+  const date = new Date(dateText);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function formatDayTime(dateText?: string) {
+  if (!dateText) {
+    return null;
+  }
+
+  const date = new Date(dateText);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago",
+    weekday: "long",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
+}
+
 export function AppointmentPage({ appointment }: Props) {
   const [confirmed, setConfirmed] = useState(Boolean(appointment.confirmed));
   const [toast, setToast] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activePhotoIndex, setActivePhotoIndex] = useState<number | null>(null);
+  const [activeGallery, setActiveGallery] = useState<{ images: string[]; index: number } | null>(null);
   const [showMoreReviews, setShowMoreReviews] = useState(false);
+  const [expandedExpectation, setExpandedExpectation] = useState<string | null>(null);
+  const [expandedBringItem, setExpandedBringItem] = useState<string | null>(null);
 
   const advisorName = appointment.advisor_name || appointment.advisor || "Jude";
   const timeLabel = appointment.appointment_at ? formatAppointmentDate(appointment.appointment_at) : appointment.time;
-  const shortTime = appointment.time || timeLabel;
+  const shortTime = formatShortTime(appointment.appointment_at) || appointment.time || timeLabel;
+  const dayTime = formatDayTime(appointment.appointment_at);
   const entrancePhotos = appointment.entrance_photo_urls ?? [];
   const reviews = appointment.featured_reviews ?? [];
   const featuredReviews = reviews.slice(0, 3);
   const extraReviews = reviews.slice(3);
+  const trustImages = [
+    ...(appointment.review_photo_urls ?? []),
+    ...(appointment.customer_delivery_photo_urls ?? []),
+    ...(appointment.check_handoff_photo_urls ?? [])
+  ];
   const calendarLink = useMemo(() => createGoogleCalendarLink(appointment, timeLabel), [appointment, timeLabel]);
+  const mapsLink =
+    appointment.google_maps_url ||
+    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      appointment.location_address || DEFAULT_LOCATION_ADDRESS
+    )}`;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -100,8 +156,8 @@ export function AppointmentPage({ appointment }: Props) {
   }
 
   return (
-    <main className="min-h-screen bg-[#f4ede0] px-5 py-8 text-[#171512]">
-      <div className="mx-auto flex w-full max-w-[640px] flex-col gap-8">
+    <main className="min-h-screen bg-[#f7f5f2] px-5 py-8 text-[#1a1a1a]">
+      <div className="mx-auto flex w-full max-w-[640px] flex-col gap-7">
         <section className="space-y-4 pt-2">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8c8173]">
             Appointment Set
@@ -113,6 +169,34 @@ export function AppointmentPage({ appointment }: Props) {
             <p className="max-w-[34rem] text-[17px] leading-8 text-[#4e4740]">
               I&apos;ve got everything ready for your {appointment.vehicle} so this is quick when you get here.
             </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {calendarLink ? (
+              <a
+                href={calendarLink}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-[12px] border border-[#ddd3c8] bg-white px-4 py-2.5 text-sm font-medium text-[#1f1e1b] transition hover:bg-[#f2ede6] active:scale-[0.98]"
+              >
+                Add to Calendar
+              </a>
+            ) : null}
+            {appointment.advisor_phone ? (
+              <a
+                href={`tel:${appointment.advisor_phone}`}
+                className="rounded-[12px] border border-[#ddd3c8] bg-white px-4 py-2.5 text-sm font-medium text-[#1f1e1b] transition hover:bg-[#f2ede6] active:scale-[0.98]"
+              >
+                Call
+              </a>
+            ) : null}
+            {appointment.advisor_phone ? (
+              <a
+                href={`sms:${appointment.advisor_phone}`}
+                className="rounded-[12px] border border-[#ddd3c8] bg-white px-4 py-2.5 text-sm font-medium text-[#1f1e1b] transition hover:bg-[#f2ede6] active:scale-[0.98]"
+              >
+                Text
+              </a>
+            ) : null}
           </div>
         </section>
 
@@ -135,33 +219,35 @@ export function AppointmentPage({ appointment }: Props) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row">
-            {appointment.advisor_phone ? (
-              <a
-                href={`sms:${appointment.advisor_phone}`}
-                className="rounded-[18px] border border-[#d8cdbc] bg-white/55 px-4 py-3 text-center text-sm font-medium text-[#2b2722] transition hover:bg-white/75"
-              >
-                Text Advisor
-              </a>
-            ) : null}
-            {appointment.advisor_phone ? (
-              <a
-                href={`tel:${appointment.advisor_phone}`}
-                className="rounded-[18px] border border-[#d8cdbc] bg-white/55 px-4 py-3 text-center text-sm font-medium text-[#2b2722] transition hover:bg-white/75"
-              >
-                Call Advisor
-              </a>
-            ) : null}
+          <div className="space-y-3">
             <button
               type="button"
               onClick={handleConfirm}
               disabled={confirmed || isSubmitting}
-              className={`rounded-[18px] px-5 py-3 text-sm font-semibold text-white transition ${
-                confirmed ? "bg-[#3f6b58]" : "bg-[#234638] hover:bg-[#1d3b2f]"
+              className={`w-full rounded-[12px] px-5 py-4 text-base font-semibold text-white transition active:scale-[0.99] ${
+                confirmed ? "bg-[#426756]" : "bg-[#183d34] hover:bg-[#14342c]"
               }`}
             >
-              {confirmed ? `Confirmed for ${shortTime}` : "Confirm I'm Coming"}
+              {confirmed ? "You're all set - I'll be ready for you" : `I'll be there at ${shortTime}`}
             </button>
+            <div className="flex flex-wrap gap-3">
+              {appointment.advisor_phone ? (
+                <a
+                  href={`sms:${appointment.advisor_phone}`}
+                  className="rounded-[12px] border border-[#ddd3c8] bg-white px-4 py-2.5 text-sm font-medium text-[#1f1e1b] transition hover:bg-[#f2ede6] active:scale-[0.98]"
+                >
+                  Text {advisorName}
+                </a>
+              ) : null}
+              {appointment.advisor_phone ? (
+                <a
+                  href={`tel:${appointment.advisor_phone}`}
+                  className="rounded-[12px] border border-[#ddd3c8] bg-white px-4 py-2.5 text-sm font-medium text-[#1f1e1b] transition hover:bg-[#f2ede6] active:scale-[0.98]"
+                >
+                  Call {advisorName}
+                </a>
+              ) : null}
+            </div>
           </div>
 
           {toast ? (
@@ -175,17 +261,18 @@ export function AppointmentPage({ appointment }: Props) {
           ) : null}
         </section>
 
-        <section>
+        <section className="space-y-2">
           <p className="text-[17px] leading-8 text-[#2e2924]">
             You&apos;re coming in for your {appointment.vehicle}.
           </p>
+          {dayTime ? <p className="text-[15px] text-[#6a6158]">{dayTime}</p> : null}
         </section>
 
         <section className="space-y-4">
           <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#171512]">When you arrive</h2>
           <div className="space-y-3">
             {arrivalSteps.map((step, index) => (
-              <div key={step} className="rounded-[18px] bg-white/55 px-5 py-4">
+              <div key={step} className="rounded-[12px] border border-[#ece4d8] bg-white px-5 py-4 shadow-[0_8px_24px_rgba(26,26,26,0.04)]">
                 <p className="text-[15px] leading-7 text-[#2e2924]">
                   {index + 1}. {index === 2 ? `Come inside and ask for ${advisorName}` : step}
                 </p>
@@ -197,8 +284,8 @@ export function AppointmentPage({ appointment }: Props) {
             <div className="space-y-3">
               <button
                 type="button"
-                onClick={() => setActivePhotoIndex(0)}
-                className="block w-full overflow-hidden rounded-[20px] text-left shadow-sm transition hover:scale-[1.01]"
+                onClick={() => setActiveGallery({ images: entrancePhotos, index: 0 })}
+                className="block w-full overflow-hidden rounded-[12px] text-left shadow-[0_10px_28px_rgba(26,26,26,0.06)] transition hover:scale-[1.01] active:scale-[0.995]"
               >
                 <img
                   src={entrancePhotos[0]}
@@ -206,26 +293,32 @@ export function AppointmentPage({ appointment }: Props) {
                   className="aspect-[16/10] w-full object-cover"
                 />
               </button>
-              <p className="text-sm text-[#6d6258]">This is where you&apos;ll come in.</p>
+              <p className="text-sm text-[#6d6258]">This is where you&apos;ll come in</p>
             </div>
           ) : null}
 
+          <a
+            href={mapsLink}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-[12px] border border-[#ddd3c8] bg-white px-4 py-3 text-center text-sm font-medium text-[#2b2722] transition hover:bg-[#f2ede6] active:scale-[0.98]"
+          >
+            Open in Google Maps
+          </a>
           <div className="flex flex-col gap-3 sm:flex-row">
-            {appointment.google_maps_url ? (
-              <a
-                href={appointment.google_maps_url}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-[18px] border border-[#d8cdbc] bg-white/55 px-4 py-3 text-center text-sm font-medium text-[#2b2722] transition hover:bg-white/75"
-              >
-                Open in Google Maps
-              </a>
-            ) : null}
+            <a
+              href={mapsLink}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-[12px] border border-[#ddd3c8] bg-white px-4 py-3 text-center text-sm font-medium text-[#2b2722] transition hover:bg-[#f2ede6] active:scale-[0.98]"
+            >
+              Get Directions
+            </a>
             {entrancePhotos.length > 0 ? (
               <button
                 type="button"
-                onClick={() => setActivePhotoIndex(0)}
-                className="rounded-[18px] border border-[#d8cdbc] bg-white/55 px-4 py-3 text-sm font-medium text-[#2b2722] transition hover:bg-white/75"
+                onClick={() => setActiveGallery({ images: entrancePhotos, index: 0 })}
+                className="rounded-[12px] border border-[#ddd3c8] bg-white px-4 py-3 text-sm font-medium text-[#2b2722] transition hover:bg-[#f2ede6] active:scale-[0.98]"
               >
                 View Entrance Photo
               </button>
@@ -238,21 +331,61 @@ export function AppointmentPage({ appointment }: Props) {
           <p className="text-[16px] leading-8 text-[#4d463f]">This usually takes about 30-45 minutes.</p>
           <div className="grid gap-3 sm:grid-cols-3">
             {expectationSteps.map((step) => (
-              <div key={step.label} className="rounded-[18px] bg-white/55 px-4 py-4">
+              <button
+                key={step.label}
+                type="button"
+                onClick={() =>
+                  setExpandedExpectation((current) => (current === step.label ? null : step.label))
+                }
+                className="rounded-[12px] border border-[#ece4d8] bg-white px-4 py-4 text-left shadow-[0_8px_24px_rgba(26,26,26,0.04)] transition hover:bg-[#fcfaf7] active:scale-[0.99]"
+              >
                 <p className="text-sm font-semibold text-[#171512]">{step.label}</p>
                 <p className="mt-1 text-sm text-[#6b6258]">{step.time}</p>
-              </div>
+                <AnimatePresence initial={false}>
+                  {expandedExpectation === step.label ? (
+                    <motion.p
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mt-3 overflow-hidden text-sm leading-6 text-[#60574e]"
+                    >
+                      {step.detail}
+                    </motion.p>
+                  ) : null}
+                </AnimatePresence>
+              </button>
             ))}
           </div>
         </section>
 
         <section className="space-y-4">
           <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[#171512]">What to bring</h2>
-          <ul className="space-y-2 text-[16px] leading-8 text-[#2e2924]">
-            <li>Title (if you have it)</li>
-            <li>Payoff info (if applicable)</li>
-            <li>Keys</li>
-          </ul>
+          <div className="space-y-2">
+            {bringItems.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() =>
+                  setExpandedBringItem((current) => (current === item.label ? null : item.label))
+                }
+                className="w-full rounded-[12px] border border-[#ece4d8] bg-white px-4 py-3 text-left transition hover:bg-[#fcfaf7] active:scale-[0.99]"
+              >
+                <p className="text-[16px] leading-8 text-[#2e2924]">{item.label}</p>
+                <AnimatePresence initial={false}>
+                  {expandedBringItem === item.label ? (
+                    <motion.p
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden text-sm leading-6 text-[#60574e]"
+                    >
+                      {item.detail}
+                    </motion.p>
+                  ) : null}
+                </AnimatePresence>
+              </button>
+            ))}
+          </div>
         </section>
 
         {(featuredReviews.length > 0 || appointment.google_reviews_url || appointment.yelp_reviews_url) ? (
@@ -281,7 +414,7 @@ export function AppointmentPage({ appointment }: Props) {
                   href={appointment.google_reviews_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-[18px] border border-[#d8cdbc] bg-white/55 px-4 py-3 text-center text-sm font-medium text-[#2b2722] transition hover:bg-white/75"
+                  className="rounded-[12px] border border-[#ddd3c8] bg-white px-4 py-3 text-center text-sm font-medium text-[#2b2722] transition hover:bg-[#f2ede6] active:scale-[0.98]"
                 >
                   View Google Reviews
                 </a>
@@ -291,7 +424,7 @@ export function AppointmentPage({ appointment }: Props) {
                   href={appointment.yelp_reviews_url}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-[18px] border border-[#d8cdbc] bg-white/55 px-4 py-3 text-center text-sm font-medium text-[#2b2722] transition hover:bg-white/75"
+                  className="rounded-[12px] border border-[#ddd3c8] bg-white px-4 py-3 text-center text-sm font-medium text-[#2b2722] transition hover:bg-[#f2ede6] active:scale-[0.98]"
                 >
                   View Yelp Reviews
                 </a>
@@ -300,50 +433,53 @@ export function AppointmentPage({ appointment }: Props) {
                 <button
                   type="button"
                   onClick={() => setShowMoreReviews(true)}
-                  className="rounded-[18px] border border-[#d8cdbc] bg-white/55 px-4 py-3 text-sm font-medium text-[#2b2722] transition hover:bg-white/75"
+                  className="rounded-[12px] border border-[#ddd3c8] bg-white px-4 py-3 text-sm font-medium text-[#2b2722] transition hover:bg-[#f2ede6] active:scale-[0.98]"
                 >
-                  See More Seller Feedback
+                  See More Feedback
                 </button>
               ) : null}
             </div>
+
+            {trustImages.length > 0 ? (
+              <div className="flex gap-3 overflow-x-auto pb-2">
+                {trustImages.map((image, index) => (
+                  <button
+                    key={`${image}-${index}`}
+                    type="button"
+                    onClick={() => setActiveGallery({ images: trustImages, index })}
+                    className="h-24 min-w-32 overflow-hidden rounded-[12px] shadow-[0_8px_24px_rgba(26,26,26,0.04)]"
+                  >
+                    <img src={image} alt="Customer visit" className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </section>
         ) : null}
 
         <section className="space-y-5 pb-4 text-center">
           <p className="text-[17px] leading-8 text-[#2e2924]">We&apos;ve set aside time specifically for you.</p>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={handleConfirm}
-              disabled={confirmed || isSubmitting}
-              className={`w-full rounded-[18px] px-5 py-4 text-base font-semibold text-white transition ${
-                confirmed ? "bg-[#3f6b58]" : "bg-[#234638] hover:bg-[#1d3b2f]"
-              }`}
-            >
-              {confirmed ? "I'm Coming" : "I'm Coming"}
-            </button>
-            {calendarLink ? (
-              <a
-                href={calendarLink}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full rounded-[18px] border border-[#d8cdbc] bg-white/55 px-5 py-4 text-base font-medium text-[#2b2722] transition hover:bg-white/75"
-              >
-                Add to Calendar
-              </a>
-            ) : null}
-          </div>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={confirmed || isSubmitting}
+            className={`w-full rounded-[12px] px-5 py-4 text-base font-semibold text-white transition active:scale-[0.99] ${
+              confirmed ? "bg-[#426756]" : "bg-[#183d34] hover:bg-[#14342c]"
+            }`}
+          >
+            {confirmed ? "You're all set - I'll be ready for you" : "I'll be there"}
+          </button>
         </section>
       </div>
 
       <AnimatePresence>
-        {activePhotoIndex !== null ? (
+        {activeGallery ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4"
-            onClick={() => setActivePhotoIndex(null)}
+            onClick={() => setActiveGallery(null)}
           >
             <motion.div
               initial={{ scale: 0.96, opacity: 0 }}
@@ -353,16 +489,23 @@ export function AppointmentPage({ appointment }: Props) {
               onClick={(event) => event.stopPropagation()}
             >
               <img
-                src={entrancePhotos[activePhotoIndex]}
-                alt="Entrance"
+                src={activeGallery.images[activeGallery.index]}
+                alt="Appointment reference"
                 className="aspect-[16/10] w-full rounded-[18px] object-cover"
               />
-              {entrancePhotos.length > 1 ? (
+              {activeGallery.images.length > 1 ? (
                 <div className="mt-4 flex items-center justify-between gap-3">
                   <button
                     type="button"
                     onClick={() =>
-                      setActivePhotoIndex((activePhotoIndex - 1 + entrancePhotos.length) % entrancePhotos.length)
+                      setActiveGallery((current) =>
+                        current
+                          ? {
+                              ...current,
+                              index: (current.index - 1 + current.images.length) % current.images.length
+                            }
+                          : current
+                      )
                     }
                     className="rounded-[16px] border border-[#d8cdbc] bg-white/70 px-4 py-2 text-sm font-medium text-[#2b2722]"
                   >
@@ -370,7 +513,11 @@ export function AppointmentPage({ appointment }: Props) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActivePhotoIndex((activePhotoIndex + 1) % entrancePhotos.length)}
+                    onClick={() =>
+                      setActiveGallery((current) =>
+                        current ? { ...current, index: (current.index + 1) % current.images.length } : current
+                      )
+                    }
                     className="rounded-[16px] border border-[#d8cdbc] bg-white/70 px-4 py-2 text-sm font-medium text-[#2b2722]"
                   >
                     Next

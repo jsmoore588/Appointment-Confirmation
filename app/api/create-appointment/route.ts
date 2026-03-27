@@ -5,6 +5,7 @@ import { Appointment, FeaturedReview } from "@/lib/types";
 import { parseAppointmentTime, formatAppointmentDate } from "@/lib/datetime";
 import { createGoogleCalendarEvent } from "@/lib/calendar";
 import { DEFAULT_LOCATION_ADDRESS, DEFAULT_LOCATION_NAME } from "@/lib/constants";
+import { getAppSettings } from "@/lib/app-settings";
 
 type CreatePayload = {
   name?: string;
@@ -52,6 +53,8 @@ function cleanReviews(values?: FeaturedReview[]) {
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as CreatePayload;
+  const appSettings = await getAppSettings();
+  const template = appSettings.templateDefaults || {};
 
   const customerName = body.customer_name?.trim() || body.name?.trim();
   const advisorName = body.advisor_name?.trim() || body.advisor?.trim();
@@ -79,8 +82,8 @@ export async function POST(request: NextRequest) {
     time: formatAppointmentDate(appointmentAt),
     advisor_name: advisorName,
     advisor: advisorName,
-    advisor_phone: body.advisor_phone?.trim(),
-    advisor_photo_url: body.advisor_photo_url?.trim(),
+    advisor_phone: body.advisor_phone?.trim() || template.advisor_phone,
+    advisor_photo_url: body.advisor_photo_url?.trim() || template.advisor_photo_url,
     appointment_page_url: pageUrl,
     google_calendar_event_id: undefined,
     calendar_sync_status: "pending",
@@ -95,16 +98,23 @@ export async function POST(request: NextRequest) {
     confirmed: false,
     opened_count: 0,
     engagement_score: 0,
-    location_name: body.location_name?.trim() || DEFAULT_LOCATION_NAME,
-    location_address: body.location_address?.trim() || DEFAULT_LOCATION_ADDRESS,
-    google_maps_url: body.google_maps_url?.trim(),
-    entrance_photo_urls: cleanArray(body.entrance_photo_urls),
-    google_reviews_url: body.google_reviews_url?.trim(),
-    yelp_reviews_url: body.yelp_reviews_url?.trim(),
-    review_photo_urls: cleanArray(body.review_photo_urls),
+    location_name: body.location_name?.trim() || template.location_name || DEFAULT_LOCATION_NAME,
+    location_address:
+      body.location_address?.trim() || template.location_address || DEFAULT_LOCATION_ADDRESS,
+    google_maps_url: body.google_maps_url?.trim() || template.google_maps_url,
+    entrance_photo_urls: cleanArray(body.entrance_photo_urls).length
+      ? cleanArray(body.entrance_photo_urls)
+      : template.entrance_photo_urls || [],
+    google_reviews_url: body.google_reviews_url?.trim() || template.google_reviews_url,
+    yelp_reviews_url: body.yelp_reviews_url?.trim() || template.yelp_reviews_url,
+    review_photo_urls: cleanArray(body.review_photo_urls).length
+      ? cleanArray(body.review_photo_urls)
+      : template.review_photo_urls || [],
     customer_delivery_photo_urls: cleanArray(body.customer_delivery_photo_urls),
     check_handoff_photo_urls: cleanArray(body.check_handoff_photo_urls),
-    featured_reviews: cleanReviews(body.featured_reviews)
+    featured_reviews: cleanReviews(body.featured_reviews).length
+      ? cleanReviews(body.featured_reviews)
+      : template.featured_reviews || []
   };
 
   let savedAppointment: Appointment;

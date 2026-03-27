@@ -18,10 +18,32 @@ export async function POST(request: NextRequest) {
   const body = (await request.json()) as {
     openaiApiKey?: string;
     openaiModel?: string;
+    templateDefaults?: {
+      advisor_name?: string;
+      advisor_phone?: string;
+      advisor_photo_url?: string;
+      location_name?: string;
+      location_address?: string;
+      google_maps_url?: string;
+      google_reviews_url?: string;
+      yelp_reviews_url?: string;
+      entrance_photo_urls?: string[];
+      review_photo_urls?: string[];
+      featured_reviews?: Array<{
+        reviewer_name: string;
+        review_text: string;
+        review_source?: string;
+      }>;
+    };
   };
 
-  const nextSettings: { openaiApiKey?: string; openaiModel?: string } = {
-    openaiModel: body.openaiModel?.trim() || "gpt-4.1-mini"
+  const nextSettings: {
+    openaiApiKey?: string;
+    openaiModel?: string;
+    templateDefaults?: typeof body.templateDefaults;
+  } = {
+    openaiModel: body.openaiModel?.trim() || "gpt-4.1-mini",
+    templateDefaults: body.templateDefaults
   };
 
   if (body.openaiApiKey?.trim()) {
