@@ -22,11 +22,11 @@ const expectationSteps = [
 ];
 
 function createGoogleCalendarLink(appointment: Appointment, startLabel: string) {
-  if (!appointment.scheduled_at) {
+  if (!appointment.appointment_at) {
     return null;
   }
 
-  const start = new Date(appointment.scheduled_at);
+  const start = new Date(appointment.appointment_at);
   const end = new Date(start);
   end.setMinutes(end.getMinutes() + 45);
 
@@ -54,7 +54,7 @@ export function AppointmentPage({ appointment }: Props) {
   const [showMoreReviews, setShowMoreReviews] = useState(false);
 
   const advisorName = appointment.advisor_name || appointment.advisor || "Jude";
-  const timeLabel = appointment.scheduled_at ? formatAppointmentDate(appointment.scheduled_at) : appointment.time;
+  const timeLabel = appointment.appointment_at ? formatAppointmentDate(appointment.appointment_at) : appointment.time;
   const shortTime = appointment.time || timeLabel;
   const entrancePhotos = appointment.entrance_photo_urls ?? [];
   const reviews = appointment.featured_reviews ?? [];

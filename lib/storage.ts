@@ -1,28 +1,31 @@
 import { formatAppointmentDate, hoursUntil, isToday, isTomorrow } from "@/lib/datetime";
 import { getSupabaseServerClient } from "@/lib/supabase";
-import { Appointment, AppointmentEvent, AppointmentEventType } from "@/lib/types";
+import { Appointment, AppointmentEvent, AppointmentEventType, AppointmentStatus } from "@/lib/types";
 
-export type AppointmentStatus = "confirmed" | "viewed" | "not_opened";
 export type AppointmentPriority = "high" | "normal" | "low";
 
 function getStatus(appointment: Appointment): AppointmentStatus {
-  if (appointment.confirmed) {
+  if (appointment.confirmed || appointment.status === "confirmed") {
     return "confirmed";
+  }
+
+  if (appointment.status === "calendar_sync_failed") {
+    return "calendar_sync_failed";
   }
 
   if ((appointment.opened_count ?? 0) > 0) {
     return "viewed";
   }
 
-  return "not_opened";
+  return appointment.status || "scheduled";
 }
 
 function getPriority(appointment: Appointment): AppointmentPriority {
-  if (appointment.confirmed) {
+  if (getStatus(appointment) === "confirmed") {
     return "low";
   }
 
-  const hours = hoursUntil(appointment.scheduled_at);
+  const hours = hoursUntil(appointment.appointment_at);
 
   if ((appointment.opened_count ?? 0) === 0 && hours >= 0 && hours <= 3) {
     return "high";
@@ -35,19 +38,90 @@ function getPriority(appointment: Appointment): AppointmentPriority {
   return "normal";
 }
 
-function toDashboardAppointment(appointment: Appointment) {
+function mapAppointment(row: Record<string, unknown>) {
+  const appointmentAt = (row.appointment_at as string | null) ?? undefined;
+  const advisorName = (row.advisor_name as string | null) ?? "";
+  const customerName = (row.customer_name as string | null) ?? "";
+
   return {
-    ...appointment,
-    status: getStatus(appointment),
-    priority: getPriority(appointment),
-    formattedTime: appointment.scheduled_at
-      ? formatAppointmentDate(appointment.scheduled_at)
-      : appointment.time
-  };
+    id: String(row.id),
+    customer_name: customerName,
+    name: customerName,
+    vehicle: String(row.vehicle ?? ""),
+    appointment_at: appointmentAt,
+    time: appointmentAt ? formatAppointmentDate(appointmentAt) : "",
+    advisor_name: advisorName,
+    advisor: advisorName,
+    advisor_phone: (row.advisor_phone as string | null) ?? undefined,
+    advisor_photo_url: (row.advisor_photo_url as string | null) ?? undefined,
+    appointment_page_url: (row.appointment_page_url as string | null) ?? undefined,
+    google_calendar_event_id: (row.google_calendar_event_id as string | null) ?? undefined,
+    calendar_sync_status: (row.calendar_sync_status as "pending" | "synced" | "failed" | null) ?? undefined,
+    status: (row.status as AppointmentStatus | null) ?? "scheduled",
+    created_at: String(row.created_at),
+    updated_at: (row.updated_at as string | null) ?? undefined,
+    source: (row.source as string | null) ?? undefined,
+    mileage: (row.mileage as string | null) ?? undefined,
+    notes: (row.notes as string | null) ?? undefined,
+    phone: (row.phone as string | null) ?? undefined,
+    email: (row.email as string | null) ?? undefined,
+    customer_phone: (row.customer_phone as string | null) ?? undefined,
+    confirmed: Boolean(row.confirmed),
+    opened_count: Number(row.opened_count ?? 0),
+    last_opened_at: (row.last_opened_at as string | null) ?? undefined,
+    first_opened_at: (row.first_opened_at as string | null) ?? undefined,
+    confirmed_at: (row.confirmed_at as string | null) ?? undefined,
+    engagement_score: Number(row.engagement_score ?? 0),
+    location_name: (row.location_name as string | null) ?? undefined,
+    location_address: (row.location_address as string | null) ?? undefined,
+    google_maps_url: (row.google_maps_url as string | null) ?? undefined,
+    entrance_photo_urls: (row.entrance_photo_urls as string[] | null) ?? [],
+    google_reviews_url: (row.google_reviews_url as string | null) ?? undefined,
+    yelp_reviews_url: (row.yelp_reviews_url as string | null) ?? undefined,
+    featured_reviews: (row.featured_reviews as Appointment["featured_reviews"] | null) ?? [],
+    review_photo_urls: (row.review_photo_urls as string[] | null) ?? [],
+    customer_delivery_photo_urls: (row.customer_delivery_photo_urls as string[] | null) ?? [],
+    check_handoff_photo_urls: (row.check_handoff_photo_urls as string[] | null) ?? []
+  } satisfies Appointment;
 }
 
-function mapAppointment(row: Record<string, unknown>) {
-  return row as unknown as Appointment;
+function toDatabaseAppointment(appointment: Appointment) {
+  return {
+    id: appointment.id,
+    customer_name: appointment.customer_name || appointment.name,
+    vehicle: appointment.vehicle,
+    appointment_at: appointment.appointment_at,
+    advisor_name: appointment.advisor_name || appointment.advisor,
+    advisor_phone: appointment.advisor_phone ?? null,
+    advisor_photo_url: appointment.advisor_photo_url ?? null,
+    appointment_page_url: appointment.appointment_page_url ?? null,
+    google_calendar_event_id: appointment.google_calendar_event_id ?? null,
+    calendar_sync_status: appointment.calendar_sync_status ?? "pending",
+    status: appointment.status || "scheduled",
+    created_at: appointment.created_at,
+    source: appointment.source ?? "extension",
+    mileage: appointment.mileage ?? null,
+    notes: appointment.notes ?? null,
+    phone: appointment.phone ?? null,
+    email: appointment.email ?? null,
+    customer_phone: appointment.customer_phone ?? null,
+    confirmed: appointment.confirmed ?? false,
+    opened_count: appointment.opened_count ?? 0,
+    last_opened_at: appointment.last_opened_at ?? null,
+    first_opened_at: appointment.first_opened_at ?? null,
+    confirmed_at: appointment.confirmed_at ?? null,
+    engagement_score: appointment.engagement_score ?? 0,
+    location_name: appointment.location_name ?? null,
+    location_address: appointment.location_address ?? null,
+    google_maps_url: appointment.google_maps_url ?? null,
+    entrance_photo_urls: appointment.entrance_photo_urls ?? [],
+    google_reviews_url: appointment.google_reviews_url ?? null,
+    yelp_reviews_url: appointment.yelp_reviews_url ?? null,
+    featured_reviews: appointment.featured_reviews ?? [],
+    review_photo_urls: appointment.review_photo_urls ?? [],
+    customer_delivery_photo_urls: appointment.customer_delivery_photo_urls ?? [],
+    check_handoff_photo_urls: appointment.check_handoff_photo_urls ?? []
+  };
 }
 
 function mapEvent(row: Record<string, unknown>) {
@@ -62,12 +136,23 @@ function mapEvent(row: Record<string, unknown>) {
   } satisfies AppointmentEvent;
 }
 
+function toDashboardAppointment(appointment: Appointment) {
+  return {
+    ...appointment,
+    status: getStatus(appointment),
+    priority: getPriority(appointment),
+    formattedTime: appointment.appointment_at
+      ? formatAppointmentDate(appointment.appointment_at)
+      : appointment.time
+  };
+}
+
 export async function listAppointments() {
   const supabase = getSupabaseServerClient();
   const { data, error } = await supabase
     .from("appointments")
     .select("*")
-    .order("created_at", { ascending: false });
+    .order("appointment_at", { ascending: true });
 
   if (error) {
     throw error;
@@ -79,7 +164,7 @@ export async function listAppointments() {
 export async function getDashboardMetrics() {
   const supabase = getSupabaseServerClient();
   const [appointmentsResult, eventsResult] = await Promise.all([
-    supabase.from("appointments").select("*").order("scheduled_at", { ascending: true }),
+    supabase.from("appointments").select("*").order("appointment_at", { ascending: true }),
     supabase.from("appointment_events").select("*").order("created_at", { ascending: false })
   ]);
 
@@ -98,17 +183,29 @@ export async function getDashboardMetrics() {
   const totalConfirmations = events.filter((event) => event.type === "confirm_clicked").length;
   const highIntent = appointments.filter((appointment) => (appointment.opened_count ?? 0) > 2).length;
   const viewedAppointments = appointments.filter((appointment) => (appointment.opened_count ?? 0) > 0).length;
-  const todayAppointments = appointments.filter((appointment) => isToday(appointment.scheduled_at));
-  const tomorrowAppointments = appointments.filter((appointment) => isTomorrow(appointment.scheduled_at));
+  const todayAppointments = appointments
+    .filter((appointment) => isToday(appointment.appointment_at))
+    .sort((a, b) => (a.appointment_at || "").localeCompare(b.appointment_at || ""));
+  const tomorrowAppointments = appointments
+    .filter((appointment) => isTomorrow(appointment.appointment_at))
+    .sort((a, b) => (a.appointment_at || "").localeCompare(b.appointment_at || ""));
+  const overdueAppointments = appointments
+    .filter(
+      (appointment) =>
+        appointment.appointment_at &&
+        new Date(appointment.appointment_at).getTime() < Date.now() &&
+        getStatus(appointment) !== "confirmed"
+    )
+    .sort((a, b) => (a.appointment_at || "").localeCompare(b.appointment_at || ""));
 
   const suggestions = [
     appointments.some(
-      (appointment) => appointment.priority === "high" && appointment.status === "not_opened"
+      (appointment) => appointment.priority === "high" && appointment.status === "scheduled"
     )
-      ? "Prioritize not-opened appointments that are less than 3 hours away."
+      ? "Prioritize scheduled appointments that are less than 3 hours away and still unopened."
       : null,
     highIntent > 0 ? "Prioritize repeat-open appointments. They are signaling strong intent." : null,
-    totalConfirmations > 0 ? "Deprioritize confirmed appointments unless timing changes." : null
+    overdueAppointments.length > 0 ? "Review overdue appointments and reschedule or close them out." : null
   ].filter(Boolean) as string[];
 
   return {
@@ -123,7 +220,8 @@ export async function getDashboardMetrics() {
       totalAppointments === 0 ? 0 : Math.round((totalConfirmations / totalAppointments) * 100),
     suggestions,
     todayAppointments,
-    tomorrowAppointments
+    tomorrowAppointments,
+    overdueAppointments
   };
 }
 
@@ -140,20 +238,49 @@ export async function getAppointmentById(id: string) {
 
 export async function createAppointment(appointment: Appointment) {
   const supabase = getSupabaseServerClient();
-  const { error } = await supabase.from("appointments").insert(appointment);
+  const { data, error } = await supabase
+    .from("appointments")
+    .insert(toDatabaseAppointment(appointment))
+    .select("*")
+    .maybeSingle();
 
   if (error) {
     throw error;
   }
 
-  return appointment;
+  if (!data) {
+    throw new Error("Appointment save failed");
+  }
+
+  return mapAppointment(data);
 }
 
 export async function updateAppointment(id: string, partial: Partial<Appointment>) {
   const supabase = getSupabaseServerClient();
+  const payload: Record<string, unknown> = {};
+
+  if (partial.customer_name || partial.name) payload.customer_name = partial.customer_name || partial.name;
+  if (partial.vehicle !== undefined) payload.vehicle = partial.vehicle;
+  if (partial.appointment_at !== undefined) payload.appointment_at = partial.appointment_at;
+  if (partial.advisor_name || partial.advisor) payload.advisor_name = partial.advisor_name || partial.advisor;
+  if (partial.advisor_phone !== undefined) payload.advisor_phone = partial.advisor_phone;
+  if (partial.advisor_photo_url !== undefined) payload.advisor_photo_url = partial.advisor_photo_url;
+  if (partial.appointment_page_url !== undefined) payload.appointment_page_url = partial.appointment_page_url;
+  if (partial.google_calendar_event_id !== undefined)
+    payload.google_calendar_event_id = partial.google_calendar_event_id;
+  if (partial.calendar_sync_status !== undefined) payload.calendar_sync_status = partial.calendar_sync_status;
+  if (partial.status !== undefined) payload.status = partial.status;
+  if (partial.source !== undefined) payload.source = partial.source;
+  if (partial.confirmed !== undefined) payload.confirmed = partial.confirmed;
+  if (partial.opened_count !== undefined) payload.opened_count = partial.opened_count;
+  if (partial.last_opened_at !== undefined) payload.last_opened_at = partial.last_opened_at;
+  if (partial.first_opened_at !== undefined) payload.first_opened_at = partial.first_opened_at;
+  if (partial.confirmed_at !== undefined) payload.confirmed_at = partial.confirmed_at;
+  if (partial.engagement_score !== undefined) payload.engagement_score = partial.engagement_score;
+
   const { data, error } = await supabase
     .from("appointments")
-    .update(partial)
+    .update(payload)
     .eq("id", id)
     .select("*")
     .maybeSingle();
@@ -205,12 +332,16 @@ export async function registerEvent(
     nextPatch.last_opened_at = timestamp;
     nextPatch.first_opened_at = appointment.first_opened_at ?? timestamp;
     nextPatch.engagement_score = Math.min((appointment.engagement_score ?? 0) + 20, 100);
+    if (appointment.status === "scheduled") {
+      nextPatch.status = "viewed";
+    }
   }
 
   if (type === "confirm_clicked") {
     nextPatch.confirmed = true;
     nextPatch.confirmed_at = timestamp;
     nextPatch.engagement_score = Math.min((appointment.engagement_score ?? 0) + 35, 100);
+    nextPatch.status = "confirmed";
   }
 
   const updatedAppointment =

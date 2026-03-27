@@ -96,10 +96,10 @@ export default async function DashboardPage() {
             title="Appointments scheduled for today"
             subtitle="Status is driven by opens and confirmation clicks."
           />
-          <div className="mt-5 grid gap-4">
-            {dashboard.todayAppointments.length > 0 ? (
-              dashboard.todayAppointments.map((appointment) => (
-                <AppointmentCard key={appointment.id} appointment={appointment} />
+        <div className="mt-5 grid gap-4">
+          {dashboard.todayAppointments.length > 0 ? (
+            dashboard.todayAppointments.map((appointment) => (
+              <AppointmentCard key={appointment.id} appointment={appointment} />
               ))
             ) : (
               <EmptyState label="No appointments on today's board." />
@@ -121,6 +121,23 @@ export default async function DashboardPage() {
             ))
           ) : (
             <EmptyState label="No appointments lined up for tomorrow." />
+          )}
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-[2rem] border border-black/5 bg-white/75 p-6 shadow-card backdrop-blur">
+        <SectionHeader
+          eyebrow="Debug"
+          title="Overdue and persistence debug"
+          subtitle="Temporary visibility to confirm every appointment exists in the database and is queryable."
+        />
+        <div className="mt-5 grid gap-4">
+          {dashboard.overdueAppointments.length > 0 ? (
+            dashboard.overdueAppointments.map((appointment) => (
+              <AppointmentCard key={appointment.id} appointment={appointment} debug />
+            ))
+          ) : (
+            <EmptyState label="No overdue appointments right now." />
           )}
         </div>
       </section>
@@ -148,22 +165,34 @@ function SectionHeader({
 
 function AppointmentCard({
   appointment,
-  tomorrow = false
+  tomorrow = false,
+  debug = false
 }: {
   appointment: {
     id: string;
     name: string;
     vehicle: string;
     formattedTime: string;
-    status: "confirmed" | "viewed" | "not_opened";
+    appointment_at?: string;
+    appointment_page_url?: string;
+    google_calendar_event_id?: string;
+    created_at: string;
+    source?: string;
+    status: "scheduled" | "confirmed" | "viewed" | "not_opened" | "calendar_sync_failed";
     priority: "high" | "normal" | "low";
     phone?: string;
+    advisor_phone?: string;
   };
   tomorrow?: boolean;
+  debug?: boolean;
 }) {
   const statusTone =
     appointment.status === "confirmed"
       ? "bg-[#d6e7db] text-[#224735]"
+      : appointment.status === "scheduled"
+        ? "bg-[#e5e2dd] text-[#4b4640]"
+        : appointment.status === "calendar_sync_failed"
+          ? "bg-[#f0ddda] text-[#8b3d34]"
       : appointment.status === "viewed"
         ? "bg-[#ece3d5] text-[#7a5328]"
         : "bg-[#f0ddda] text-[#8b3d34]";
@@ -193,19 +222,30 @@ function AppointmentCard({
         </div>
         <p className="mt-2 text-sm text-black/65">{appointment.vehicle}</p>
         <p className="mt-1 text-sm text-black/55">{appointment.formattedTime}</p>
+        {debug ? (
+          <div className="mt-3 space-y-1 text-xs text-black/45">
+            <p>ID: {appointment.id}</p>
+            <p>created_at: {appointment.created_at}</p>
+            <p>appointment_at: {appointment.appointment_at || "missing"}</p>
+            <p>calendar_event_id: {appointment.google_calendar_event_id || "none"}</p>
+            <p>status: {appointment.status}</p>
+            <p>source: {appointment.source || "extension"}</p>
+            <p>page_url: {appointment.appointment_page_url || "missing"}</p>
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-2 text-sm">
-        {appointment.phone ? (
+        {(appointment.advisor_phone || appointment.phone) ? (
           <>
             <a
-              href={`sms:${appointment.phone}`}
+              href={`sms:${appointment.advisor_phone || appointment.phone}`}
               className="inline-flex items-center rounded-full border border-black/10 px-4 py-2 font-medium text-ink"
             >
               Text
             </a>
             <a
-              href={`tel:${appointment.phone}`}
+              href={`tel:${appointment.advisor_phone || appointment.phone}`}
               className="inline-flex items-center rounded-full border border-black/10 px-4 py-2 font-medium text-ink"
             >
               Call

@@ -2,24 +2,80 @@ create extension if not exists "pgcrypto";
 
 create table if not exists appointments (
   id uuid primary key,
-  name text not null,
+  customer_name text not null,
   vehicle text not null,
-  time text not null,
-  scheduled_at timestamptz,
-  advisor text not null,
+  appointment_at timestamptz not null,
+  advisor_name text not null,
+  advisor_phone text,
+  advisor_photo_url text,
+  appointment_page_url text not null,
+  status text not null default 'scheduled',
+  google_calendar_event_id text,
+  calendar_sync_status text not null default 'pending',
   created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  source text not null default 'extension',
   mileage text,
   notes text,
   phone text,
   email text,
+  customer_phone text,
   confirmed boolean not null default false,
   opened_count integer not null default 0,
   last_opened_at timestamptz,
   first_opened_at timestamptz,
   confirmed_at timestamptz,
   engagement_score integer not null default 0,
-  calendar_event_id text
+  location_name text,
+  location_address text,
+  google_maps_url text,
+  entrance_photo_urls text[] not null default '{}',
+  google_reviews_url text,
+  yelp_reviews_url text,
+  featured_reviews jsonb not null default '[]'::jsonb,
+  review_photo_urls text[] not null default '{}',
+  customer_delivery_photo_urls text[] not null default '{}',
+  check_handoff_photo_urls text[] not null default '{}'
 );
+
+alter table appointments add column if not exists customer_name text;
+alter table appointments add column if not exists appointment_at timestamptz;
+alter table appointments add column if not exists advisor_name text;
+alter table appointments add column if not exists advisor_phone text;
+alter table appointments add column if not exists advisor_photo_url text;
+alter table appointments add column if not exists appointment_page_url text;
+alter table appointments add column if not exists status text default 'scheduled';
+alter table appointments add column if not exists google_calendar_event_id text;
+alter table appointments add column if not exists calendar_sync_status text default 'pending';
+alter table appointments add column if not exists updated_at timestamptz default now();
+alter table appointments add column if not exists source text default 'extension';
+alter table appointments add column if not exists location_name text;
+alter table appointments add column if not exists location_address text;
+alter table appointments add column if not exists google_maps_url text;
+alter table appointments add column if not exists entrance_photo_urls text[] default '{}';
+alter table appointments add column if not exists google_reviews_url text;
+alter table appointments add column if not exists yelp_reviews_url text;
+alter table appointments add column if not exists featured_reviews jsonb default '[]'::jsonb;
+alter table appointments add column if not exists review_photo_urls text[] default '{}';
+alter table appointments add column if not exists customer_delivery_photo_urls text[] default '{}';
+alter table appointments add column if not exists check_handoff_photo_urls text[] default '{}';
+
+update appointments
+set
+  customer_name = coalesce(customer_name, name),
+  appointment_at = coalesce(appointment_at, scheduled_at, created_at),
+  advisor_name = coalesce(advisor_name, advisor),
+  appointment_page_url = coalesce(appointment_page_url, ''),
+  status = coalesce(status, 'scheduled'),
+  calendar_sync_status = coalesce(calendar_sync_status, 'pending'),
+  source = coalesce(source, 'extension')
+where customer_name is null
+   or appointment_at is null
+   or advisor_name is null
+   or appointment_page_url is null
+   or status is null
+   or calendar_sync_status is null
+   or source is null;
 
 create table if not exists appointment_events (
   id uuid primary key,
@@ -30,7 +86,7 @@ create table if not exists appointment_events (
 );
 
 create index if not exists appointment_events_appointment_id_idx on appointment_events (appointment_id);
-create index if not exists appointments_scheduled_at_idx on appointments (scheduled_at);
+create index if not exists appointments_appointment_at_idx on appointments (appointment_at);
 
 create table if not exists app_settings (
   key text primary key,
@@ -45,6 +101,12 @@ begin
   return new;
 end;
 $$ language plpgsql;
+
+drop trigger if exists appointments_set_updated_at on appointments;
+create trigger appointments_set_updated_at
+before update on appointments
+for each row
+execute function set_updated_at();
 
 drop trigger if exists app_settings_set_updated_at on app_settings;
 create trigger app_settings_set_updated_at
