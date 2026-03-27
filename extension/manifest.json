@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Appointment Engine",
+  "version": "1.0.0",
+  "description": "Generate appointment lock-in links from any site.",
+  "permissions": ["activeTab", "clipboardWrite", "storage", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_title": "Appointment Engine",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

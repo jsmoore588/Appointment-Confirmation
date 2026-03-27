@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Appointment Engine</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="card">
+        <div class="eyebrow">Appointment Engine</div>
+        <h1>Generate appointment link</h1>
+        <p class="subtle">Fast, personal, and ready to send.</p>
+
+        <label>
+          <span>Name</span>
+          <input id="name" type="text" placeholder="Customer name" />
+        </label>
+
+        <label>
+          <span>Vehicle</span>
+          <input id="vehicle" type="text" placeholder="Vehicle details" />
+        </label>
+
+        <label>
+          <span>Time</span>
+          <input id="time" type="text" placeholder="Today at 3:30 PM" />
+        </label>
+
+        <label>
+          <span>Email (optional)</span>
+          <input id="email" type="email" placeholder="seller@example.com" />
+        </label>
+
+        <label>
+          <span>Advisor</span>
+          <input id="advisor" type="text" value="Jude" />
+        </label>
+
+        <label>
+          <span>API base URL</span>
+          <input id="apiBaseUrl" type="url" placeholder="http://localhost:6767" />
+        </label>
+
+        <label class="toggle">
+          <input id="openTab" type="checkbox" checked />
+          <span>Open appointment page after generation</span>
+        </label>
+
+        <button id="generate">Generate Appointment Link</button>
+        <p id="status" class="status"></p>
+      </section>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+  </html>
